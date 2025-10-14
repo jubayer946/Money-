@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Money Manager</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Firebase SDK - Keep exactly as is -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-analytics.js";
+    import { 
+      getDatabase, 
+      ref, 
+      push, 
+      set, 
+      get, 
+      onValue, 
+      remove,
+      update 
+    } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCWeH-KD2NqPd_B0w4MjJeofSiXCUEPNs",
+      authDomain: "money-34ef6.firebaseapp.com",
+      databaseURL: "https://money-34ef6-default-rtdb.firebaseio.com",
+      projectId: "money-34ef6",
+      storageBucket: "money-34ef6.firebasestorage.app",
+      messagingSenderId: "662368167193",
+      appId: "1:662368167193:web:33a3aab68cca609dbe9188",
+      measurementId: "G-0TGQXLG81P"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const database = getDatabase(app);
+
+    window.firebaseDB = {
+      database,
+      ref,
+      push,
+      set,
+      get,
+      onValue,
+      remove,
+      update
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.initializeApp();
+    });
+  </script>
+
+  <style>
+    /* Keep all your original styles */
+    * { 
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    :root { 
+      --bg: #ffffff; 
+      --surface: #f8f9fa; 
+      --text: #1a1a1a; 
+      --text-light: #6b7280; 
+      --border: #e5e7eb; 
+      --primary: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius: 16px;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root { 
+        --bg: #000000; 
+        --surface: #0a0a0a; 
+        --text: #ffffff; 
+        --text-light: #9ca3af; 
+        --border: #1f2937; 
+      }
+    }
+    
+    html { height: 100%; overflow: hidden; }
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg); 
+      color: var(--text);
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      box-sizing: border-box;
+    }
+    
+    #app { height: 100%; display: flex; flex-direction: column; }
+    #main-content { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+    .surface { background: var(--surface); border-radius: var(--radius); }
+    .text-light { color: var(--text-light); }
+    
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border-radius: 12px;
+      padding: 12px 24px;
+      font-weight: 600;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .btn-primary:active { transform: scale(0.95); }
+    .btn-ghost { background: transparent; color: var(--text); border-radius: 12px; padding: 12px; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; }
+    .btn-ghost:active { background: var(--border); }
+    .input-field { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); width: 100%; font-size: 16px; transition: all 0.2s; }
+    .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .stat-card { background: var(--surface); border-radius: var(--radius); padding: 20px; position: relative; overflow: hidden; }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--primary), #8b5cf6); }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); padding: 8px 0; z-index: 50; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px; cursor: pointer; transition: all 0.2s; color: var(--text-light); }
+    .nav-item.active { color: var(--primary); }
+    .nav-item:active { transform: scale(0.95); }
+    .transaction-item { background: var(--surface); border-radius: 12px; padding: 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; }
+    .transaction-item:active { transform: scale(0.98); }
+    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    .modal-content { background: var(--bg); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 400px; max-height: 80vh; overflow-y: auto; }
+    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+    .category-item { display: flex; flex-direction: column; align-items: center; padding: 16px 8px; border-radius: 12px; background: var(--surface); cursor: pointer; transition: all 0.2s; border: 2px solid transparent; }
+    .category-item:active { transform: scale(0.95); }
+    .category-item.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); }
+    .fab { position: fixed; bottom: 90px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; border: none; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); transition: all 0.2s; z-index: 40; }
+    .fab:active { transform: scale(0.9); }
+    .hidden { display: none !important; }
+    .chart-container { position: relative; height: 200px; margin: 20px 0; }
+    .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Clean AI Styles */
+    .ai-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .ai-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: pulse 4s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.1); opacity: 0.3; }
+    }
+    
+    .insight-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      font-size: 13px;
+      margin: 4px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .ai-suggestion {
+      background: var(--surface);
+      border-left: 3px solid var(--primary);
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="main-content">
+      <!-- Dashboard View -->
+      <div id="dashboard-view" class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-2xl font-bold">Money Manager</h1>
+            <p class="text-light">Track your finances</p>
+          </div>
+          <button class="btn-ghost" onclick="showSettings()">
+            <i class="fas fa-cog"></i>
+          </button>
+        </div>
+        
+        <!-- Clean AI Insights Section -->
+        <div id="ai-section" class="ai-card hidden">
+          <div class="relative z-10">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-bold flex items-center gap-2">
+                <i class="fas fa-robot"></i> AI Insights
+              </h3>
+              <button onclick="AI.refresh()" class="text-white/80 hover:text-white">
+                <i class="fas fa-sync-alt text-sm"></i>
+              </button>
+            </div>
+            <div id="ai-content">
+              <!-- AI content will be injected here -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- Balance Card -->
+        <div class="stat-card mb-6">
+          <div class="text-center">
+            <p class="text-light text-sm mb-2">Total Balance</p>
+            <h2 id="total-balance" class="text-3xl font-bold">$0.00</h2>
+          </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="stat-card">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-light text-sm">Income</p>
+                <p id="total-income" class="text-lg font-semibold text-green-500">$0.00</p>
+              </div>
+              <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-arrow-up text-green-500"></i>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-light text-sm">Expenses</p>
+                <p id="total-expenses" class="text-lg font-semibold text-red-500">$0.00</p>
+              </div>
+              <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-arrow-down text-red-500"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Recent Transactions -->
+        <div>
+          <h3 class="text-lg font-semibold mb-4">Recent Transactions</h3>
+          <div id="recent-transactions">
+            <p class="text-light text-center">No transactions yet</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keep all other views unchanged -->
+      <div id="transactions-view" class="p-6 hidden">
+        <h2 class="text-2xl font-bold mb-6">All Transactions</h2>
+        <div id="all-transactions">
+          <p class="text-light text-center">No transactions yet</p>
+        </div>
+      </div>
+
+      <div id="stats-view" class="p-6 hidden">
+        <h2 class="text-2xl font-bold mb-6">Statistics</h2>
+        <div class="chart-container">
+          <canvas id="expense-chart"></canvas>
+        </div>
+      </div>
+
+      <div id="profile-view" class="p-6 hidden">
+        <h2 class="text-2xl font-bold mb-6">Profile</h2>
+        <div class="surface p-4 rounded-lg">
+          <p class="text-light">Profile settings coming soon!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+      <div class="flex">
+        <div class="nav-item active" onclick="switchView('dashboard')">
+          <i class="fas fa-home text-xl mb-1"></i>
+          <span class="text-xs">Home</span>
+        </div>
+        <div class="nav-item" onclick="switchView('transactions')">
+          <i class="fas fa-list text-xl mb-1"></i>
+          <span class="text-xs">Transactions</span>
+        </div>
+        <div class="nav-item" onclick="switchView('stats')">
+          <i class="fas fa-chart-pie text-xl mb-1"></i>
+          <span class="text-xs">Stats</span>
+        </div>
+        <div class="nav-item" onclick="switchView('profile')">
+          <i class="fas fa-user text-xl mb-1"></i>
+          <span class="text-xs">Profile</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="openAddTransaction()">
+      <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Add Transaction Modal -->
+    <div id="add-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3 class="text-xl font-bold mb-4">Add Transaction</h3>
+        <div class="flex gap-2 mb-4">
+          <button id="income-btn" class="flex-1 btn-primary" onclick="setTransactionType('income')">Income</button>
+          <button id="expense-btn" class="flex-1 btn-ghost surface" onclick="setTransactionType('expense')">Expense</button>
+        </div>
+        <div class="mb-4">
+          <label class="text-sm text-light mb-2 block">Amount</label>
+          <input type="number" id="amount-input" class="input-field" placeholder="0.00" step="0.01">
+        </div>
+        <div class="mb-4">
+          <label class="text-sm text-light mb-2 block">Category</label>
+          <div class="category-grid" id="category-grid"></div>
+        </div>
+        <div class="mb-4">
+          <label class="text-sm text-light mb-2 block">Description</label>
+          <input type="text" id="description-input" class="input-field" placeholder="Enter description">
+        </div>
+        <div class="mb-6">
+          <label class="text-sm text-light mb-2 block">Date</label>
+          <input type="date" id="date-input" class="input-field">
+        </div>
+        <div class="flex gap-2">
+          <button class="flex-1 btn-ghost surface" onclick="closeModal()">Cancel</button>
+          <button class="flex-1 btn-primary" onclick="saveTransaction()">
+            <span id="save-btn-text">Save</span>
+            <span id="save-btn-loading" class="loading hidden"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // App State
+    let state = {
+      transactions: [],
+      currentView: 'dashboard',
+      transactionType: 'income',
+      selectedCategory: null,
+      chart: null
+    };
+
+    // Categories
+    const categories = {
+      income: [
+        { id: 'salary', name: 'Salary', icon: '💰' },
+        { id: 'freelance', name: 'Freelance', icon: '💻' },
+        { id: 'business', name: 'Business', icon: '💼' },
+        { id: 'investment', name: 'Investment', icon: '📈' },
+        { id: 'other', name: 'Other', icon: '📋' }
+      ],
+      expense: [
+        { id: 'food', name: 'Food', icon: '🍔' },
+        { id: 'transport', name: 'Transport', icon: '🚗' },
+        { id: 'shopping', name: 'Shopping', icon: '🛍️' },
+        { id: 'bills', name: 'Bills', icon: '📄' },
+        { id: 'entertainment', name: 'Entertainment', icon: '🎬' },
+        { id: 'health', name: 'Health', icon: '🏥' },
+        { id: 'education', name: 'Education', icon: '📚' },
+        { id: 'other', name: 'Other', icon: '📋' }
+      ]
+    };
+
+    // ========== CLEAN AI MODULE ==========
+    const AI = {
+      analyze() {
+        if (state.transactions.length === 0) return null;
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        // Get this month's data
+        const thisMonth = state.transactions.filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        });
+        
+        // Calculate metrics
+        const income = thisMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = thisMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const balance = income - expenses;
+        const savingsRate = income > 0 ? ((balance / income) * 100).toFixed(0) : 0;
+        
+        // Find top expense category
+        const expensesByCategory = {};
+        thisMonth.filter(t => t.type === 'expense').forEach(t => {
+          expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
+        });
+        
+        const topCategory = Object.entries(expensesByCategory)
+          .sort((a, b) => b[1] - a[1])[0];
+        
+        // Daily average
+        const daysPassed = now.getDate();
+        const dailyAvg = expenses / daysPassed;
+        const projected = dailyAvg * 30;
+        
+        return {
+          savingsRate,
+          balance,
+          topCategory: topCategory ? categories.expense.find(c => c.id === topCategory[0])?.name : null,
+          topAmount: topCategory ? topCategory[1] : 0,
+          dailyAvg,
+          projected,
+          expenses,
+          income
+        };
+      },
+      
+      getInsights() {
+        const analysis = this.analyze();
+        if (!analysis) return [];
+        
+        const insights = [];
+        
+        // Savings insight
+        if (analysis.savingsRate >= 20) {
+          insights.push({ type: 'success', text: `Great! ${analysis.savingsRate}% savings rate` });
+        } else if (analysis.savingsRate >= 10) {
+          insights.push({ type: 'warning', text: `${analysis.savingsRate}% savings - aim for 20%` });
+        } else if (analysis.balance >= 0) {
+          insights.push({ type: 'danger', text: `Low savings: ${analysis.savingsRate}%` });
+        } else {
+          insights.push({ type: 'danger', text: 'Overspending detected!' });
+        }
+        
+        // Top category insight
+        if (analysis.topCategory) {
+          const percent = ((analysis.topAmount / analysis.expenses) * 100).toFixed(0);
+          insights.push({ 
+            type: 'info', 
+            text: `${percent}% spent on ${analysis.topCategory}` 
+          });
+        }
+        
+        // Daily spending
+        if (analysis.dailyAvg > 0) {
+          insights.push({ 
+            type: 'info', 
+            text: `Daily avg: $${analysis.dailyAvg.toFixed(2)}` 
+          });
+        }
+        
+        return insights;
+      },
+      
+      getSuggestions() {
+        const analysis = this.analyze();
+        if (!analysis) return ['Start tracking your expenses to get personalized tips'];
+        
+        const suggestions = [];
+        
+        if (analysis.savingsRate < 20 && analysis.savingsRate >= 0) {
+          suggestions.push('💡 Try the 50/30/20 rule: 50% needs, 30% wants, 20% savings');
+        }
+        
+        if (analysis.projected > analysis.income && analysis.income > 0) {
+          suggestions.push('⚠️ Your projected spending exceeds income this month');
+        }
+        
+        if (analysis.topAmount > analysis.expenses * 0.4) {
+          suggestions.push(`📊 Consider reducing ${analysis.topCategory} expenses`);
+        }
+        
+        if (analysis.savingsRate > 30) {
+          suggestions.push('🎯 Excellent savings! Consider investing the surplus');
+        }
+        
+        return suggestions.length > 0 ? suggestions : ['✨ Keep tracking for better insights'];
+      },
+      
+      render() {
+        const aiSection = document.getElementById('ai-section');
+        const aiContent = document.getElementById('ai-content');
+        
+        if (state.transactions.length === 0) {
+          aiSection.classList.add('hidden');
+          return;
+        }
+        
+        aiSection.classList.remove('hidden');
+        
+        const insights = this.getInsights();
+        const suggestions = this.getSuggestions();
+        
+        aiContent.innerHTML = `
+          <div class="mb-3">
+            ${insights.map(i => `<span class="insight-pill">${i.text}</span>`).join('')}
+          </div>
+          <div class="text-sm opacity-90">
+            ${suggestions[0]}
+          </div>
+        `;
+      },
+      
+      refresh() {
+        const aiContent = document.getElementById('ai-content');
+        aiContent.innerHTML = '<div class="text-sm opacity-90">Analyzing...</div>';
+        setTimeout(() => this.render(), 500);
+      }
+    };
+
+    // Initialize app
+    window.initializeApp = function() {
+      console.log('Initializing Money Manager...');
+      document.getElementById('date-input').valueAsDate = new Date();
+      loadTransactions();
+      renderCategories();
+      updateDashboard();
+    };
+
+    // Firebase Functions
+    function loadTransactions() {
+      console.log('Loading transactions from Firebase...');
+      
+      const { database, ref, onValue } = window.firebaseDB;
+      const transactionsRef = ref(database, 'transactions');
+      
+      onValue(transactionsRef, (snapshot) => {
+        const data = snapshot.val();
+        
+        if (data) {
+          state.transactions = Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          }));
+          state.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } else {
+          state.transactions = [];
+        }
+        
+        updateDashboard();
+        renderTransactions();
+        updateChart();
+        AI.render(); // Update AI insights
+      }, (error) => {
+        console.error('Error loading transactions:', error);
+      });
+    }
+
+    // Keep all your existing functions unchanged
+    function saveTransaction() {
+      const amount = parseFloat(document.getElementById('amount-input').value);
+      const description = document.getElementById('description-input').value;
+      const date = document.getElementById('date-input').value;
+
+      if (!amount || !state.selectedCategory) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      document.getElementById('save-btn-text').classList.add('hidden');
+      document.getElementById('save-btn-loading').classList.remove('hidden');
+
+      const transaction = {
+        type: state.transactionType,
+        amount: amount,
+        category: state.selectedCategory,
+        description: description,
+        date: date,
+        timestamp: Date.now()
+      };
+
+      const { database, ref, push } = window.firebaseDB;
+      const transactionsRef = ref(database, 'transactions');
+      
+      push(transactionsRef, transaction)
+        .then(() => {
+          document.getElementById('amount-input').value = '';
+          document.getElementById('description-input').value = '';
+          document.getElementById('date-input').valueAsDate = new Date();
+          state.selectedCategory = null;
+          document.getElementById('save-btn-text').classList.remove('hidden');
+          document.getElementById('save-btn-loading').classList.add('hidden');
+          closeModal();
+        })
+        .catch((error) => {
+          console.error('Error saving transaction:', error);
+          alert('Failed to save transaction. Please try again.');
+          document.getElementById('save-btn-text').classList.remove('hidden');
+          document.getElementById('save-btn-loading').classList.add('hidden');
+        });
+    }
+
+    function deleteTransaction(id) {
+      if (confirm('Are you sure you want to delete this transaction?')) {
+        const { database, ref, remove } = window.firebaseDB;
+        const transactionRef = ref(database, `transactions/${id}`);
+        
+        remove(transactionRef)
+          .then(() => {
+            console.log('Transaction deleted successfully');
+          })
+          .catch((error) => {
+            console.error('Error deleting transaction:', error);
+            alert('Failed to delete transaction');
+          });
+      }
+    }
+
+    function switchView(view) {
+      document.getElementById('dashboard-view').classList.add('hidden');
+      document.getElementById('transactions-view').classList.add('hidden');
+      document.getElementById('stats-view').classList.add('hidden');
+      document.getElementById('profile-view').classList.add('hidden');
+      
+      const viewElement = document.getElementById(`${view}-view`);
+      if (viewElement) {
+        viewElement.classList.remove('hidden');
+      }
+      
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      event.currentTarget.classList.add('active');
+      
+      state.currentView = view;
+      
+      if (view === 'stats') {
+        updateChart();
+      }
+    }
+
+    function openAddTransaction() {
+      document.getElementById('add-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('add-modal').classList.add('hidden');
+    }
+
+    function setTransactionType(type) {
+      state.transactionType = type;
+      
+      if (type === 'income') {
+        document.getElementById('income-btn').classList.add('btn-primary');
+        document.getElementById('income-btn').classList.remove('btn-ghost', 'surface');
+        document.getElementById('expense-btn').classList.remove('btn-primary');
+        document.getElementById('expense-btn').classList.add('btn-ghost', 'surface');
+      } else {
+        document.getElementById('expense-btn').classList.add('btn-primary');
+        document.getElementById('expense-btn').classList.remove('btn-ghost', 'surface');
+        document.getElementById('income-btn').classList.remove('btn-primary');
+        document.getElementById('income-btn').classList.add('btn-ghost', 'surface');
+      }
+      
+      renderCategories();
+    }
+
+    function renderCategories() {
+      const grid = document.getElementById('category-grid');
+      const cats = categories[state.transactionType];
+      
+      grid.innerHTML = cats.map(cat => `
+        <div class="category-item ${state.selectedCategory === cat.id ? 'selected' : ''}" 
+             onclick="selectCategory('${cat.id}')">
+          <span class="text-2xl mb-1">${cat.icon}</span>
+          <span class="text-xs">${cat.name}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectCategory(categoryId) {
+      state.selectedCategory = categoryId;
+      renderCategories();
+    }
+
+    function updateDashboard() {
+      const income = state.transactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const expenses = state.transactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const balance = income - expenses;
+      
+      document.getElementById('total-balance').textContent = `$${balance.toFixed(2)}`;
+      document.getElementById('total-income').textContent = `$${income.toFixed(2)}`;
+      document.getElementById('total-expenses').textContent = `$${expenses.toFixed(2)}`;
+      
+      const recentContainer = document.getElementById('recent-transactions');
+      const recent = state.transactions.slice(0, 5);
+      
+      if (recent.length === 0) {
+        recentContainer.innerHTML = '<p class="text-light text-center">No transactions yet</p>';
+      } else {
+        recentContainer.innerHTML = recent.map(t => {
+          const category = categories[t.type].find(c => c.id === t.category);
+          return `
+            <div class="transaction-item" onclick="deleteTransaction('${t.id}')">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">${category?.icon || '📋'}</span>
+                <div>
+                  <p class="font-medium">${t.description || category?.name}</p>
+                  <p class="text-sm text-light">${new Date(t.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <p class="font-semibold ${t.type === 'income' ? 'text-green-500' : 'text-red-500'}">
+                ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
+              </p>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function renderTransactions() {
+      const container = document.getElementById('all-transactions');
+      
+      if (state.transactions.length === 0) {
+        container.innerHTML = '<p class="text-light text-center">No transactions yet</p>';
+      } else {
+        container.innerHTML = state.transactions.map(t => {
+          const category = categories[t.type].find(c => c.id === t.category);
+          return `
+            <div class="transaction-item" onclick="deleteTransaction('${t.id}')">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">${category?.icon || '📋'}</span>
+                <div>
+                  <p class="font-medium">${t.description || category?.name}</p>
+                  <p class="text-sm text-light">${new Date(t.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <p class="font-semibold ${t.type === 'income' ? 'text-green-500' : 'text-red-500'}">
+                ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
+              </p>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function updateChart() {
+      const ctx = document.getElementById('expense-chart');
+      if (!ctx) return;
+      
+      const expenses = state.transactions.filter(t => t.type === 'expense');
+      const categoryTotals = {};
+      
+      expenses.forEach(t => {
+        if (!categoryTotals[t.category]) {
+          categoryTotals[t.category] = 0;
+        }
+        categoryTotals[t.category] += t.amount;
+      });
+      
+      const data = {
+        labels: Object.keys(categoryTotals).map(key => {
+          const cat = categories.expense.find(c => c.id === key);
+          return cat?.name || 'Other';
+        }),
+        datasets: [{
+          data: Object.values(categoryTotals),
+          backgroundColor: [
+            '#3b82f6',
+            '#10b981',
+            '#f59e0b',
+            '#ef4444',
+            '#8b5cf6',
+            '#ec4899',
+            '#06b6d4',
+            '#84cc16'
+          ]
+        }]
+      };
+      
+      if (state.chart) {
+        state.chart.destroy();
+      }
+      
+      if (Object.keys(categoryTotals).length > 0) {
+        state.chart = new Chart(ctx, {
+          type: 'pie',
+          data: data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom'
+              }
+            }
+          }
+        });
+      }
+    }
+
+    function showSettings() {
+      alert('Settings page coming soon!');
+    }
+
+    document.getElementById('add-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'add-modal') {
+        closeModal();
+      }
+    });
+  </script>
+</body>
+</html>
