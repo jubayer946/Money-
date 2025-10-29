@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#3b82f6">
   <title>Money Manager</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
@@ -508,7 +510,6 @@
     .speed-dial-action:nth-child(3) { animation-delay: 0.15s; }
     .speed-dial-action:nth-child(4) { animation-delay: 0.2s; }
     .speed-dial-action:nth-child(5) { animation-delay: 0.25s; }
-    .speed-dial-action:nth-child(6) { animation-delay: 0.3s; }
     
     @keyframes slideInAction {
       to {
@@ -705,10 +706,170 @@
       color: white;
       border-color: var(--primary);
     }
+
+    /* Chart Styles */
+    .chart-container {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .chart-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .chart-action-btn {
+      padding: 6px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .chart-action-btn:hover {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .chart-action-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* Chart Tab Styles */
+    .chart-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+    
+    .chart-tab {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    
+    .chart-tab.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* Debt Chart Styles */
+    .debt-chart-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .debt-chart-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    
+    .debt-chart-value {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    
+    .debt-chart-label {
+      font-size: 12px;
+      color: var(--text-light);
+    }
+
+    /* Offline Indicator */
+    .offline-indicator {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--warning);
+      color: white;
+      text-align: center;
+      padding: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 1000;
+      transform: translateY(-100%);
+      transition: transform 0.3s ease;
+    }
+    
+    .offline-indicator.show {
+      transform: translateY(0);
+    }
+
+    /* Sync Status */
+    .sync-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: var(--success);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+    }
+    
+    .sync-status.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .sync-status.syncing {
+      background: var(--warning);
+    }
+    
+    .sync-status.error {
+      background: var(--danger);
+    }
   </style>
 </head>
 <body>
   <div id="app">
+    <div id="offline-indicator" class="offline-indicator">
+      <i class="fas fa-wifi-slash"></i> You're currently offline. Changes will sync when connection is restored.
+    </div>
+    
+    <div id="sync-status" class="sync-status">
+      <i class="fas fa-check-circle"></i> <span>All changes synced</span>
+    </div>
+    
     <div id="main-content">
       <div id="dashboard-view" class="p-6">
         <div class="flex items-center justify-between mb-6">
@@ -785,6 +946,9 @@
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-bold">All Transactions</h2>
           <div class="flex gap-2">
+            <button class="btn-ghost" onclick="refreshTransactions()" title="Refresh">
+              <i class="fas fa-sync-alt"></i>
+            </button>
             <button class="btn-ghost" onclick="exportTransactions()" title="Export">
               <i class="fas fa-download"></i>
             </button>
@@ -831,6 +995,28 @@
           <button class="btn-ghost" onclick="AI.refresh()">
             <i class="fas fa-sync-alt"></i>
           </button>
+        </div>
+        
+        <!-- Chart Tabs -->
+        <div class="chart-tabs">
+          <button class="chart-tab active" onclick="switchChartTab('overview')">Overview</button>
+          <button class="chart-tab" onclick="switchChartTab('spending')">Spending</button>
+          <button class="chart-tab" onclick="switchChartTab('income')">Income</button>
+          <button class="chart-tab" onclick="switchChartTab('debt')">Debt</button>
+          <button class="chart-tab" onclick="switchChartTab('trends')">Trends</button>
+        </div>
+        
+        <!-- Chart Container -->
+        <div id="chart-container" class="chart-container">
+          <div class="chart-header">
+            <div class="chart-title" id="chart-title">Financial Overview</div>
+            <div class="chart-actions">
+              <button class="chart-action-btn active" onclick="setChartPeriod('week')">Week</button>
+              <button class="chart-action-btn" onclick="setChartPeriod('month')">Month</button>
+              <button class="chart-action-btn" onclick="setChartPeriod('year')">Year</button>
+            </div>
+          </div>
+          <canvas id="financial-chart"></canvas>
         </div>
         
         <div id="quick-insights" class="mb-6">
@@ -946,6 +1132,28 @@
             </select>
           </div>
         </div>
+
+        <div class="settings-group">
+          <h3 class="text-lg font-semibold mb-4">Offline & Sync</h3>
+          <div class="setting-item">
+            <p>Offline Mode</p>
+            <div class="flex items-center gap-2">
+              <span id="offline-status" class="text-sm text-light">Enabled</span>
+              <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+          </div>
+          <div class="setting-item">
+            <p>Pending Sync</p>
+            <span id="pending-sync-count" class="text-sm text-light">0 items</span>
+          </div>
+          <div class="setting-item">
+            <p>Last Sync</p>
+            <span id="last-sync-time" class="text-sm text-light">Just now</span>
+          </div>
+          <button class="btn-primary w-full mt-4" onclick="forceSync()">
+            <i class="fas fa-sync-alt"></i> Sync Now
+          </button>
+        </div>
       </div>
 
     </div>
@@ -1055,37 +1263,6 @@
       </div>
     </div>
 
-    <div id="split-bill-modal" class="modal hidden">
-      <div class="modal-content">
-        <h3 class="text-xl font-bold mb-4">Split Bill</h3>
-        
-        <div class="mb-4">
-          <label class="text-sm text-light mb-2 block">Total Amount</label>
-          <input type="number" id="split-total" class="input-field" placeholder="0.00" step="0.01">
-        </div>
-        
-        <div class="mb-4">
-          <label class="text-sm text-light mb-2 block">Number of People</label>
-          <input type="number" id="split-people" class="input-field" placeholder="2" min="2" value="2">
-        </div>
-        
-        <div class="mb-4 p-4 surface rounded-lg">
-          <p class="text-sm text-light">Each person pays:</p>
-          <p class="text-2xl font-bold" id="split-result">$0.00</p>
-        </div>
-        
-        <div class="mb-4">
-          <label class="text-sm text-light mb-2 block">Your Share Description</label>
-          <input type="text" id="split-description" class="input-field" placeholder="Split bill">
-        </div>
-        
-        <div class="flex gap-2">
-          <button class="flex-1 btn-ghost surface" onclick="closeSplitModal()">Cancel</button>
-          <button class="flex-1 btn-primary" onclick="saveSplitExpense()">Save My Share</button>
-        </div>
-      </div>
-    </div>
-
     <div id="note-modal" class="modal hidden">
       <div class="modal-content">
         <h3 class="text-xl font-bold mb-4">Add Financial Note</h3>
@@ -1190,6 +1367,483 @@
   </div>
 
   <script>
+    // ========== SERVICE WORKER REGISTRATION ==========
+    
+    // Inline Service Worker Implementation
+    function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        // Create service worker code as a blob
+        const swCode = `
+          const CACHE_NAME = 'money-manager-v3';
+          const API_CACHE_NAME = 'money-manager-api-v1';
+
+          // Resources to cache immediately
+          const STATIC_RESOURCES = [
+            './',
+            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+            'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css',
+            'https://cdn.tailwindcss.com',
+            'https://cdn.jsdelivr.net/npm/chart.js'
+          ];
+
+          // Install - cache core resources
+          self.addEventListener('install', (event) => {
+            console.log('Service Worker installing...');
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then((cache) => cache.addAll(STATIC_RESOURCES))
+                .then(() => self.skipWaiting())
+            );
+          });
+
+          // Activate - cleanup old caches
+          self.addEventListener('activate', (event) => {
+            console.log('Service Worker activating...');
+            event.waitUntil(
+              caches.keys().then((cacheNames) => 
+                Promise.all(
+                  cacheNames.map((cacheName) => {
+                    if (![CACHE_NAME, API_CACHE_NAME].includes(cacheName)) {
+                      console.log('Deleting old cache:', cacheName);
+                      return caches.delete(cacheName);
+                    }
+                  })
+                )
+              ).then(() => self.clients.claim())
+            );
+          });
+
+          // Fetch - smart caching strategy
+          self.addEventListener('fetch', (event) => {
+            const { request } = event;
+            const url = new URL(request.url);
+
+            // Skip non-GET requests
+            if (request.method !== 'GET') return;
+
+            // Handle different types of requests with different strategies
+            if (url.origin === location.origin) {
+              // Same-origin requests: cache-first for static, network-first for dynamic
+              event.respondWith(cacheFirst(request));
+            } else if (url.origin.includes('firebase')) {
+              // Firebase requests: network-first, cache as fallback
+              event.respondWith(networkFirst(request));
+            } else {
+              // Cross-origin CDN requests: cache-first
+              event.respondWith(cacheFirst(request));
+            }
+          });
+
+          // Cache First strategy
+          async function cacheFirst(request) {
+            const cached = await caches.match(request);
+            if (cached) return cached;
+            
+            try {
+              const response = await fetch(request);
+              if (response.ok) {
+                const cache = await caches.open(CACHE_NAME);
+                cache.put(request, response.clone());
+              }
+              return response;
+            } catch (error) {
+              // Return offline page or fallback
+              return new Response('Network error happened', {
+                status: 408,
+                headers: { 'Content-Type': 'text/plain' },
+              });
+            }
+          }
+
+          // Network First strategy
+          async function networkFirst(request) {
+            try {
+              const response = await fetch(request);
+              if (response.ok) {
+                const cache = await caches.open(API_CACHE_NAME);
+                cache.put(request, response.clone());
+              }
+              return response;
+            } catch (error) {
+              const cached = await caches.match(request);
+              if (cached) return cached;
+              
+              throw error;
+            }
+          }
+
+          // Background sync for offline data
+          self.addEventListener('sync', (event) => {
+            if (event.tag === 'sync-transactions') {
+              event.waitUntil(syncData());
+            }
+          });
+
+          async function syncData() {
+            // This would sync your IndexedDB data with Firebase
+            console.log('Background sync: syncing data...');
+            // In a real implementation, you'd post a message to clients
+            // to trigger sync from the main thread
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'SYNC_DATA'
+              });
+            });
+          }
+        `;
+
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const swURL = URL.createObjectURL(blob);
+
+        navigator.serviceWorker.register(swURL)
+          .then(registration => {
+            console.log('SW registered: ', registration);
+            
+            // Check for updates every hour
+            setInterval(() => {
+              registration.update();
+            }, 60 * 60 * 1000);
+          })
+          .catch(registrationError => {
+            console.log('SW registration failed: ', registrationError);
+          });
+      }
+    }
+
+    // ========== OFFLINE FUNCTIONALITY ==========
+    
+    // IndexedDB for offline storage
+    const DB_NAME = 'MoneyManagerDB';
+    const DB_VERSION = 2; // Incremented version
+    let db;
+
+    // Initialize IndexedDB
+    function initIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          db = request.result;
+          console.log('IndexedDB initialized successfully');
+          resolve(db);
+        };
+        
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          console.log('Upgrading IndexedDB to version:', DB_VERSION);
+          
+          // Create object stores for different data types
+          if (!db.objectStoreNames.contains('transactions')) {
+            const transactionStore = db.createObjectStore('transactions', { keyPath: 'id' });
+            transactionStore.createIndex('date', 'date', { unique: false });
+            transactionStore.createIndex('type', 'type', { unique: false });
+          }
+          
+          if (!db.objectStoreNames.contains('categories')) {
+            const categoryStore = db.createObjectStore('categories', { keyPath: 'id' });
+            categoryStore.createIndex('type', 'type', { unique: false });
+          }
+          
+          if (!db.objectStoreNames.contains('debts')) {
+            const debtStore = db.createObjectStore('debts', { keyPath: 'id' });
+            debtStore.createIndex('status', 'status', { unique: false });
+          }
+          
+          if (!db.objectStoreNames.contains('pendingOperations')) {
+            const pendingStore = db.createObjectStore('pendingOperations', { keyPath: 'id', autoIncrement: true });
+            pendingStore.createIndex('type', 'type', { unique: false });
+            pendingStore.createIndex('timestamp', 'timestamp', { unique: false });
+          }
+          
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'id' });
+          }
+
+          if (!db.objectStoreNames.contains('syncMetadata')) {
+            const syncStore = db.createObjectStore('syncMetadata', { keyPath: 'id' });
+          }
+        };
+      });
+    }
+
+    // Generic function to save data to IndexedDB
+    function saveToIndexedDB(storeName, data) {
+      return new Promise((resolve, reject) => {
+        if (!db) {
+          reject(new Error('Database not initialized'));
+          return;
+        }
+        
+        const transaction = db.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        
+        const request = Array.isArray(data) 
+          ? Promise.all(data.map(item => new Promise((res, rej) => {
+              const req = store.put(item);
+              req.onsuccess = () => res(req.result);
+              req.onerror = () => rej(req.error);
+            })))
+          : new Promise((res, rej) => {
+              const req = store.put(data);
+              req.onsuccess = () => res(req.result);
+              req.onerror = () => rej(req.error);
+            });
+        
+        request.then(resolve).catch(reject);
+      });
+    }
+
+    // Generic function to get data from IndexedDB
+    function getFromIndexedDB(storeName, key) {
+      return new Promise((resolve, reject) => {
+        if (!db) {
+          reject(new Error('Database not initialized'));
+          return;
+        }
+        
+        const transaction = db.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+        
+        const request = key ? store.get(key) : store.getAll();
+        
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    // Generic function to delete data from IndexedDB
+    function deleteFromIndexedDB(storeName, key) {
+      return new Promise((resolve, reject) => {
+        if (!db) {
+          reject(new Error('Database not initialized'));
+          return;
+        }
+        
+        const transaction = db.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        
+        const request = store.delete(key);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    // Save pending operations for sync when online
+    function savePendingOperation(operation) {
+      return saveToIndexedDB('pendingOperations', {
+        ...operation,
+        timestamp: Date.now(),
+        synced: false
+      }).then(() => {
+        updatePendingSyncCount();
+        showSyncStatus('pending', 'Changes saved offline');
+      });
+    }
+
+    // Update pending sync count in UI
+    async function updatePendingSyncCount() {
+      try {
+        const operations = await getFromIndexedDB('pendingOperations');
+        const pendingCount = operations ? operations.length : 0;
+        document.getElementById('pending-sync-count').textContent = `${pendingCount} items`;
+        
+        if (pendingCount > 0) {
+          document.getElementById('sync-status').classList.add('syncing');
+          document.getElementById('sync-status').innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> <span>Syncing changes...</span>';
+          document.getElementById('sync-status').classList.add('show');
+        }
+      } catch (error) {
+        console.error('Error updating sync count:', error);
+      }
+    }
+
+    // Show sync status
+    function showSyncStatus(type, message) {
+      const syncStatus = document.getElementById('sync-status');
+      
+      syncStatus.className = 'sync-status';
+      syncStatus.classList.add('show');
+      
+      switch(type) {
+        case 'success':
+          syncStatus.innerHTML = `<i class="fas fa-check-circle"></i> <span>${message}</span>`;
+          break;
+        case 'pending':
+          syncStatus.innerHTML = `<i class="fas fa-clock"></i> <span>${message}</span>`;
+          syncStatus.classList.add('syncing');
+          break;
+        case 'error':
+          syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>${message}</span>`;
+          syncStatus.classList.add('error');
+          break;
+        case 'syncing':
+          syncStatus.innerHTML = `<i class="fas fa-sync-alt fa-spin"></i> <span>${message}</span>`;
+          syncStatus.classList.add('syncing');
+          break;
+      }
+      
+      // Auto-hide success messages after 3 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          syncStatus.classList.remove('show');
+        }, 3000);
+      }
+    }
+
+    // Update last sync time
+    function updateLastSyncTime() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('last-sync-time').textContent = timeString;
+      saveToIndexedDB('syncMetadata', { 
+        id: 'lastSync', 
+        timestamp: now.getTime(),
+        displayTime: timeString
+      });
+    }
+
+    // Process pending operations when back online
+    async function processPendingOperations() {
+      try {
+        const operations = await getFromIndexedDB('pendingOperations');
+        if (!operations || operations.length === 0) {
+          showSyncStatus('success', 'All changes synced');
+          return;
+        }
+        
+        showSyncStatus('syncing', `Syncing ${operations.length} changes...`);
+        
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const operation of operations) {
+          try {
+            switch (operation.type) {
+              case 'addTransaction':
+                await saveTransactionToFirebase(operation.data);
+                break;
+              case 'updateTransaction':
+                await updateTransactionInFirebase(operation.id, operation.data);
+                break;
+              case 'deleteTransaction':
+                await deleteTransactionFromFirebase(operation.id);
+                break;
+              case 'addCategory':
+                await saveCategoryToFirebase(operation.data);
+                break;
+              case 'updateCategory':
+                await updateCategoryInFirebase(operation.id, operation.data);
+                break;
+              case 'deleteCategory':
+                await deleteCategoryFromFirebase(operation.id);
+                break;
+              case 'addDebt':
+                await saveDebtToFirebase(operation.data);
+                break;
+              case 'updateDebt':
+                await updateDebtInFirebase(operation.id, operation.data);
+                break;
+              case 'deleteDebt':
+                await deleteDebtFromFirebase(operation.id);
+                break;
+            }
+            
+            // Remove the operation after successful sync
+            await deleteFromIndexedDB('pendingOperations', operation.id);
+            successCount++;
+            
+          } catch (error) {
+            console.error('Failed to sync operation:', operation, error);
+            errorCount++;
+            
+            // Mark operation as failed but keep it for retry
+            operation.lastError = error.message;
+            operation.retryCount = (operation.retryCount || 0) + 1;
+            operation.lastRetry = Date.now();
+            await saveToIndexedDB('pendingOperations', operation);
+          }
+        }
+        
+        // Update UI based on sync results
+        if (errorCount === 0) {
+          showSyncStatus('success', `Synced ${successCount} changes`);
+          updateLastSyncTime();
+        } else {
+          showSyncStatus('error', `Synced ${successCount}/${successCount + errorCount} changes`);
+        }
+        
+        updatePendingSyncCount();
+        
+        // Reload data after sync
+        loadTransactions();
+        loadUserCategories();
+        loadDebts();
+        
+      } catch (error) {
+        console.error('Error processing pending operations:', error);
+        showSyncStatus('error', 'Sync failed');
+      }
+    }
+
+    // Force sync manually
+    async function forceSync() {
+      if (!navigator.onLine) {
+        showSyncStatus('error', 'Cannot sync while offline');
+        return;
+      }
+      
+      await processPendingOperations();
+    }
+
+    // Network status detection
+    function updateOnlineStatus() {
+      const indicator = document.getElementById('offline-indicator');
+      
+      if (navigator.onLine) {
+        indicator.classList.remove('show');
+        showSyncStatus('syncing', 'Connection restored, syncing...');
+        // Process any pending operations when back online
+        setTimeout(() => processPendingOperations(), 1000);
+      } else {
+        indicator.classList.add('show');
+        showSyncStatus('pending', 'Working offline');
+      }
+      
+      // Update offline status in settings
+      document.getElementById('offline-status').textContent = navigator.onLine ? 'Online' : 'Offline';
+      const statusDot = document.querySelector('#offline-status + div');
+      statusDot.className = navigator.onLine ? 'w-3 h-3 rounded-full bg-green-500' : 'w-3 h-3 rounded-full bg-yellow-500';
+    }
+
+    // Initialize offline functionality
+    async function initOfflineFunctionality() {
+      await initIndexedDB();
+      registerServiceWorker();
+      
+      // Set up network event listeners
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+      
+      // Load last sync time
+      try {
+        const lastSync = await getFromIndexedDB('syncMetadata', 'lastSync');
+        if (lastSync) {
+          document.getElementById('last-sync-time').textContent = lastSync.displayTime;
+        }
+      } catch (error) {
+        console.error('Error loading last sync time:', error);
+      }
+      
+      // Update pending count
+      updatePendingSyncCount();
+      
+      // Initial status update
+      updateOnlineStatus();
+    }
+
     // ========== PERFORMANCE OPTIMIZATIONS ==========
     
     // Debounce utility function
@@ -1323,7 +1977,13 @@
       // Performance state
       virtualScroll: null,
       transactionCache: null,
-      lastRenderTime: 0
+      lastRenderTime: 0,
+      // Chart state
+      chartPeriod: 'month',
+      chartTab: 'overview',
+      financialChart: null,
+      // Offline state
+      isOnline: navigator.onLine
     };
 
     // Performance constants
@@ -1388,6 +2048,474 @@
         </div>
       `;
       return div;
+    }
+
+    // ========== OFFLINE-AWARE FIREBASE FUNCTIONS ==========
+    
+    // Save transaction with offline support
+    async function saveTransactionToFirebase(transaction) {
+      const { database, ref, push } = window.firebaseDB;
+      const transactionsRef = ref(database, 'transactions');
+      return push(transactionsRef, transaction);
+    }
+
+    // Update transaction with offline support
+    async function updateTransactionInFirebase(id, transactionData) {
+      const { database, ref, update } = window.firebaseDB;
+      const transactionRef = ref(database, `transactions/${id}`);
+      return update(transactionRef, transactionData);
+    }
+
+    // Delete transaction with offline support
+    async function deleteTransactionFromFirebase(id) {
+      const { database, ref, remove } = window.firebaseDB;
+      const transactionRef = ref(database, `transactions/${id}`);
+      return remove(transactionRef);
+    }
+
+    // Save category with offline support
+    async function saveCategoryToFirebase(categoryData) {
+      const { database, ref, push } = window.firebaseDB;
+      const categoriesRef = ref(database, 'userCategories');
+      return push(categoriesRef, categoryData);
+    }
+
+    // Update category with offline support
+    async function updateCategoryInFirebase(id, categoryData) {
+      const { database, ref, update } = window.firebaseDB;
+      const categoryRef = ref(database, `userCategories/${id}`);
+      return update(categoryRef, categoryData);
+    }
+
+    // Delete category with offline support
+    async function deleteCategoryFromFirebase(id) {
+      const { database, ref, remove } = window.firebaseDB;
+      const categoryRef = ref(database, `userCategories/${id}`);
+      return remove(categoryRef);
+    }
+
+    // Save debt with offline support
+    async function saveDebtToFirebase(debtData) {
+      const { database, ref, push } = window.firebaseDB;
+      const debtsRef = ref(database, 'debts');
+      return push(debtsRef, debtData);
+    }
+
+    // Update debt with offline support
+    async function updateDebtInFirebase(id, debtData) {
+      const { database, ref, update } = window.firebaseDB;
+      const debtRef = ref(database, `debts/${id}`);
+      return update(debtRef, debtData);
+    }
+
+    // Delete debt with offline support
+    async function deleteDebtFromFirebase(id) {
+      const { database, ref, remove } = window.firebaseDB;
+      const debtRef = ref(database, `debts/${id}`);
+      return remove(debtRef);
+    }
+
+    // ========== REFRESH TRANSACTIONS FUNCTION ==========
+    function refreshTransactions() {
+      // Show loading state
+      const refreshButton = event.target.closest('button');
+      const originalIcon = refreshButton.innerHTML;
+      refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      refreshButton.disabled = true;
+      
+      // Force reload transactions from Firebase
+      loadTransactions();
+      
+      // Reset button after a short delay
+      setTimeout(() => {
+        refreshButton.innerHTML = originalIcon;
+        refreshButton.disabled = false;
+      }, 1000);
+    }
+
+    // ========== CHART SYSTEM ==========
+    function switchChartTab(tab) {
+      state.chartTab = tab;
+      
+      // Update active tab
+      document.querySelectorAll('.chart-tab').forEach(tabEl => {
+        tabEl.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      // Update chart title
+      const titles = {
+        overview: 'Financial Overview',
+        spending: 'Spending Analysis',
+        income: 'Income Analysis',
+        debt: 'Debt Overview',
+        trends: 'Financial Trends'
+      };
+      document.getElementById('chart-title').textContent = titles[tab];
+      
+      renderChart();
+    }
+
+    function setChartPeriod(period) {
+      state.chartPeriod = period;
+      
+      // Update active period button
+      document.querySelectorAll('.chart-action-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      renderChart();
+    }
+
+    function renderChart() {
+      const ctx = document.getElementById('financial-chart').getContext('2d');
+      
+      // Destroy existing chart if it exists
+      if (state.financialChart) {
+        state.financialChart.destroy();
+      }
+      
+      let chartData;
+      
+      switch (state.chartTab) {
+        case 'overview':
+          chartData = getOverviewChartData();
+          break;
+        case 'spending':
+          chartData = getSpendingChartData();
+          break;
+        case 'income':
+          chartData = getIncomeChartData();
+          break;
+        case 'debt':
+          chartData = getDebtChartData();
+          break;
+        case 'trends':
+          chartData = getTrendsChartData();
+          break;
+      }
+      
+      if (!chartData) {
+        // Show empty state
+        ctx.font = '16px Inter';
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-light');
+        ctx.textAlign = 'center';
+        ctx.fillText('No data available for this chart', 
+          document.getElementById('financial-chart').width / 2, 
+          document.getElementById('financial-chart').height / 2);
+        return;
+      }
+      
+      state.financialChart = new Chart(ctx, {
+        type: chartData.type,
+        data: chartData.data,
+        options: chartData.options
+      });
+    }
+
+    function getOverviewChartData() {
+      const now = new Date();
+      const labels = getDateLabels();
+      
+      const incomeData = labels.map(label => {
+        const transactions = getTransactionsForPeriod(label);
+        return transactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      const expenseData = labels.map(label => {
+        const transactions = getTransactionsForPeriod(label);
+        return transactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      const balanceData = incomeData.map((income, i) => income - expenseData[i]);
+      
+      return {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Income',
+              data: incomeData,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.4,
+              fill: false
+            },
+            {
+              label: 'Expenses',
+              data: expenseData,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.4,
+              fill: false
+            },
+            {
+              label: 'Balance',
+              data: balanceData,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            title: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      };
+    }
+
+    function getSpendingChartData() {
+      const expenseCategories = getAllCategories('expense');
+      const categoryTotals = {};
+      
+      expenseCategories.forEach(cat => {
+        categoryTotals[cat.id] = state.transactions
+          .filter(t => t.type === 'expense' && t.category === cat.id)
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      // Filter out categories with no transactions
+      const filteredCategories = expenseCategories.filter(cat => categoryTotals[cat.id] > 0);
+      
+      return {
+        type: 'doughnut',
+        data: {
+          labels: filteredCategories.map(cat => cat.name),
+          datasets: [{
+            data: filteredCategories.map(cat => categoryTotals[cat.id]),
+            backgroundColor: [
+              '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+              '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+              '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            }
+          }
+        }
+      };
+    }
+
+    function getIncomeChartData() {
+      const incomeCategories = getAllCategories('income');
+      const categoryTotals = {};
+      
+      incomeCategories.forEach(cat => {
+        categoryTotals[cat.id] = state.transactions
+          .filter(t => t.type === 'income' && t.category === cat.id)
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      // Filter out categories with no transactions
+      const filteredCategories = incomeCategories.filter(cat => categoryTotals[cat.id] > 0);
+      
+      return {
+        type: 'pie',
+        data: {
+          labels: filteredCategories.map(cat => cat.name),
+          datasets: [{
+            data: filteredCategories.map(cat => categoryTotals[cat.id]),
+            backgroundColor: [
+              '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6',
+              '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            }
+          }
+        }
+      };
+    }
+
+    function getDebtChartData() {
+      const pendingDebts = state.debts.filter(d => d.status === 'pending' || d.status === 'overdue');
+      const paidDebts = state.debts.filter(d => d.status === 'paid');
+      
+      // Group by person
+      const personTotals = {};
+      pendingDebts.forEach(debt => {
+        if (!personTotals[debt.person]) {
+          personTotals[debt.person] = 0;
+        }
+        personTotals[debt.person] += debt.amount;
+      });
+      
+      const people = Object.keys(personTotals);
+      
+      return {
+        type: 'bar',
+        data: {
+          labels: people,
+          datasets: [{
+            label: 'Amount Owed',
+            data: people.map(person => personTotals[person]),
+            backgroundColor: '#f59e0b'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      };
+    }
+
+    function getTrendsChartData() {
+      const labels = getDateLabels();
+      
+      const incomeTrend = labels.map(label => {
+        const transactions = getTransactionsForPeriod(label);
+        return transactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      const expenseTrend = labels.map(label => {
+        const transactions = getTransactionsForPeriod(label);
+        return transactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+      
+      const savingsTrend = incomeTrend.map((income, i) => income - expenseTrend[i]);
+      
+      return {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Income Trend',
+              data: incomeTrend,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.4,
+              fill: false
+            },
+            {
+              label: 'Savings Trend',
+              data: savingsTrend,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      };
+    }
+
+    function getDateLabels() {
+      const now = new Date();
+      const labels = [];
+      
+      switch (state.chartPeriod) {
+        case 'week':
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(now.getDate() - i);
+            labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          }
+          break;
+        case 'month':
+          const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          for (let i = 1; i <= daysInMonth; i += Math.ceil(daysInMonth / 7)) {
+            labels.push(`Day ${i}`);
+          }
+          break;
+        case 'year':
+          for (let i = 0; i < 12; i++) {
+            const date = new Date(now.getFullYear(), i, 1);
+            labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+          }
+          break;
+      }
+      
+      return labels;
+    }
+
+    function getTransactionsForPeriod(label) {
+      const now = new Date();
+      let startDate, endDate;
+      
+      switch (state.chartPeriod) {
+        case 'week':
+          const dayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(label);
+          const targetDate = new Date(now);
+          targetDate.setDate(now.getDate() - (6 - dayIndex));
+          startDate = new Date(targetDate);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(targetDate);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'month':
+          // Simplified implementation for monthly view
+          return state.transactions.filter(t => {
+            const date = new Date(t.date);
+            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+          });
+        case 'year':
+          const monthIndex = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(label);
+          startDate = new Date(now.getFullYear(), monthIndex, 1);
+          endDate = new Date(now.getFullYear(), monthIndex + 1, 0, 23, 59, 59, 999);
+          break;
+      }
+      
+      return state.transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate >= startDate && transactionDate <= endDate;
+      });
     }
 
     // ========== SEARCH AND FILTER FUNCTIONS ==========
@@ -1623,7 +2751,6 @@
       
       // Always available utilities
       actions.push(
-        { icon: 'fa-calculator', label: 'Split Bill', color: 'text-blue-500', action: 'split' },
         { icon: 'fa-sticky-note', label: 'Add Note', color: 'text-purple-500', action: 'note' }
       );
       
@@ -1640,7 +2767,7 @@
         });
       }
       
-      return actions.slice(0, 6); // Limit to 6 actions for clean UI
+      return actions.slice(0, 5); // Limit to 5 actions for clean UI
     }
 
     // Helper function to get first category ID for a type
@@ -1670,9 +2797,6 @@
           break;
         case 'add-debt':
           openAddDebtModal();
-          break;
-        case 'split':
-          openSplitBill();
           break;
         case 'note':
           openNoteModal();
@@ -1727,10 +2851,7 @@
         timestamp: Date.now()
       };
       
-      const { database, ref, push } = window.firebaseDB;
-      const transactionsRef = ref(database, 'transactions');
-      
-      push(transactionsRef, transaction)
+      saveTransactionWithOfflineSupport(transaction)
         .then(() => {
           document.getElementById('quick-save-text').classList.remove('hidden');
           document.getElementById('quick-save-loading').classList.add('hidden');
@@ -1741,60 +2862,6 @@
           alert('Failed to save transaction');
           document.getElementById('quick-save-text').classList.remove('hidden');
           document.getElementById('quick-save-loading').classList.add('hidden');
-        });
-    }
-
-    function openSplitBill() {
-      document.getElementById('split-bill-modal').classList.remove('hidden');
-      calculateSplit(); // Calculate initial split
-    }
-
-    function closeSplitModal() {
-      document.getElementById('split-bill-modal').classList.add('hidden');
-    }
-
-    function calculateSplit() {
-      const total = parseFloat(document.getElementById('split-total').value) || 0;
-      const people = parseInt(document.getElementById('split-people').value) || 2;
-      const perPerson = total / people;
-      document.getElementById('split-result').textContent = money(perPerson);
-    }
-
-    function saveSplitExpense() {
-      const total = parseFloat(document.getElementById('split-total').value);
-      const people = parseInt(document.getElementById('split-people').value);
-      const description = document.getElementById('split-description').value || 'Split bill';
-      
-      if (!total || !people) {
-        alert('Please enter total amount and number of people');
-        return;
-      }
-      
-      const myShare = total / people;
-      
-      // Get first expense category or use a default
-      const expenseCategories = getAllCategories('expense');
-      const category = expenseCategories.length > 0 ? expenseCategories[0].id : 'other';
-      
-      const transaction = {
-        type: 'expense',
-        amount: myShare,
-        category: category,
-        description: `${description} (1/${people} split)`,
-        date: new Date().toISOString().split('T')[0],
-        timestamp: Date.now()
-      };
-      
-      const { database, ref, push } = window.firebaseDB;
-      const transactionsRef = ref(database, 'transactions');
-      
-      push(transactionsRef, transaction)
-        .then(() => {
-          closeSplitModal();
-        })
-        .catch((error) => {
-          console.error('Error saving split expense:', error);
-          alert('Failed to save transaction');
         });
     }
 
@@ -1958,10 +3025,7 @@
         timestamp: Date.now() // Update timestamp
       };
 
-      const { database, ref, update } = window.firebaseDB;
-      const transactionRef = ref(database, `transactions/${state.editingTransaction}`);
-      
-      update(transactionRef, transactionData)
+      updateTransactionWithOfflineSupport(state.editingTransaction, transactionData)
         .then(() => {
           document.getElementById('amount-input').value = '';
           document.getElementById('description-input').value = '';
@@ -1995,8 +3059,26 @@
         state.debts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         updateDebtDashboard();
         renderDebts();
+        
+        // Save to IndexedDB for offline access
+        if (data) {
+          saveToIndexedDB('debts', Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          })));
+        }
       }, (error) => {
-        console.error('Error loading debts:', error);
+        console.error('Error loading debts from Firebase:', error);
+        
+        // Fallback to IndexedDB if offline
+        getFromIndexedDB('debts').then(debts => {
+          if (debts && debts.length > 0) {
+            state.debts = debts;
+            state.debts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            updateDebtDashboard();
+            renderDebts();
+          }
+        });
       });
     }
 
@@ -2044,21 +3126,7 @@
         updatedAt: new Date().toISOString()
       };
 
-      const { database, ref, push, update } = window.firebaseDB;
-      const debtsRef = ref(database, 'debts');
-
-      let savePromise;
-      if (state.editingDebt) {
-        // Update existing debt
-        const debtRef = ref(database, `debts/${state.editingDebt}`);
-        debtData.updatedAt = new Date().toISOString();
-        savePromise = update(debtRef, debtData);
-      } else {
-        // Add new debt
-        savePromise = push(debtsRef, debtData);
-      }
-
-      savePromise
+      saveDebtWithOfflineSupport(debtData, state.editingDebt)
         .then(() => {
           document.getElementById('debt-save-btn-text').classList.remove('hidden');
           document.getElementById('debt-save-btn-loading').classList.add('hidden');
@@ -2090,10 +3158,7 @@
 
     function deleteDebt(debtId) {
       if (confirm('Are you sure you want to delete this debt record?')) {
-        const { database, ref, remove } = window.firebaseDB;
-        const debtRef = ref(database, `debts/${debtId}`);
-        
-        remove(debtRef)
+        deleteDebtWithOfflineSupport(debtId)
           .then(() => {
             console.log('Debt deleted successfully');
           })
@@ -2105,20 +3170,23 @@
     }
 
     function markDebtAsPaid(debtId) {
-      const { database, ref, update } = window.firebaseDB;
-      const debtRef = ref(database, `debts/${debtId}`);
+      const debt = state.debts.find(d => d.id === debtId);
+      if (!debt) return;
       
-      update(debtRef, {
+      const updatedDebt = {
+        ...debt,
         status: 'paid',
         updatedAt: new Date().toISOString()
-      })
-      .then(() => {
-        console.log('Debt marked as paid');
-      })
-      .catch((error) => {
-        console.error('Error updating debt:', error);
-        alert('Failed to update debt status.');
-      });
+      };
+      
+      updateDebtWithOfflineSupport(debtId, updatedDebt)
+        .then(() => {
+          console.log('Debt marked as paid');
+        })
+        .catch((error) => {
+          console.error('Error updating debt:', error);
+          alert('Failed to update debt status.');
+        });
     }
 
     function filterDebts(filter) {
@@ -2215,16 +3283,6 @@
 
     // Add event listeners for split bill calculator
     document.addEventListener('DOMContentLoaded', function() {
-      const splitTotal = document.getElementById('split-total');
-      const splitPeople = document.getElementById('split-people');
-      
-      if (splitTotal) {
-        splitTotal.addEventListener('input', calculateSplit);
-      }
-      if (splitPeople) {
-        splitPeople.addEventListener('input', calculateSplit);
-      }
-
       // Initialize emoji picker
       renderEmojiPicker();
 
@@ -2233,6 +3291,9 @@
       
       // Initialize virtual scroll
       initVirtualScroll();
+      
+      // Initialize offline functionality
+      initOfflineFunctionality();
     });
 
     // ========== CATEGORY MANAGEMENT FUNCTIONS ==========
@@ -2252,8 +3313,29 @@
         renderCategorySettings(); // Update settings view
         renderCategories();       // Update add transaction modal
         populateQuickCategorySelect(); // Update quick expense select
+        
+        // Save to IndexedDB for offline access
+        if (data) {
+          saveToIndexedDB('categories', Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          })));
+        }
       }, (error) => {
-        console.error('Error loading user categories:', error);
+        console.error('Error loading user categories from Firebase:', error);
+        
+        // Fallback to IndexedDB if offline
+        getFromIndexedDB('categories').then(categories => {
+          if (categories && categories.length > 0) {
+            state.userCategories = { income: [], expense: [] };
+            categories.forEach(category => {
+              state.userCategories[category.type].push(category);
+            });
+            renderCategorySettings();
+            renderCategories();
+            populateQuickCategorySelect();
+          }
+        });
       });
     }
 
@@ -2345,26 +3427,13 @@
       document.getElementById('category-save-btn-text').classList.add('hidden');
       document.getElementById('category-save-btn-loading').classList.remove('hidden');
 
-      const { database, ref, push, set, update } = window.firebaseDB;
-      const categoriesRef = ref(database, 'userCategories');
-
       const categoryData = {
         name: name,
         icon: icon,
         type: type
       };
 
-      let savePromise;
-      if (state.editingCategory) {
-        // Update existing category
-        const categoryToUpdateRef = ref(database, `userCategories/${state.editingCategory}`);
-        savePromise = update(categoryToUpdateRef, categoryData);
-      } else {
-        // Add new category
-        savePromise = push(categoriesRef, categoryData);
-      }
-
-      savePromise
+      saveCategoryWithOfflineSupport(categoryData, state.editingCategory)
         .then(() => {
           document.getElementById('category-save-btn-text').classList.remove('hidden');
           document.getElementById('category-save-btn-loading').classList.add('hidden');
@@ -2381,10 +3450,7 @@
 
     function deleteCategory(categoryId) {
       if (confirm('Are you sure you want to delete this category? All transactions linked to it will remain, but the category will show as "unknown".')) {
-        const { database, ref, remove } = window.firebaseDB;
-        const categoryToDeleteRef = ref(database, `userCategories/${categoryId}`);
-        
-        remove(categoryToDeleteRef)
+        deleteCategoryWithOfflineSupport(categoryId)
           .then(() => {
             console.log('Category deleted successfully');
           })
@@ -2428,9 +3494,23 @@
           updateDashboard(); // Re-render with new currency
           debouncedRenderTransactions();
           AI.render();
+          
+          // Save to IndexedDB for offline access
+          saveToIndexedDB('settings', { id: 'currency', value: appCurrency });
         }
       }, (error) => {
-        console.error('Error loading app settings:', error);
+        console.error('Error loading app settings from Firebase:', error);
+        
+        // Fallback to IndexedDB if offline
+        getFromIndexedDB('settings', 'currency').then(setting => {
+          if (setting) {
+            appCurrency = setting.value;
+            document.getElementById('currency-select').value = appCurrency;
+            updateDashboard();
+            debouncedRenderTransactions();
+            AI.render();
+          }
+        });
       });
     }
 
@@ -2443,11 +3523,317 @@
           console.log('Currency updated to:', newCurrency);
           // Clear currency cache when currency changes
           currencyCache.clear();
+          
+          // Save to IndexedDB for offline access
+          saveToIndexedDB('settings', { id: 'currency', value: newCurrency });
         })
         .catch((error) => {
           console.error('Error updating currency:', error);
           alert('Failed to update currency.');
         });
+    }
+
+    // ========== OFFLINE-AWARE DATA OPERATIONS ==========
+    
+    // Transaction operations with offline support
+    async function saveTransactionWithOfflineSupport(transaction) {
+      if (navigator.onLine) {
+        try {
+          const result = await saveTransactionToFirebase(transaction);
+          // Also save to IndexedDB for offline access
+          await saveToIndexedDB('transactions', { id: result.key, ...transaction });
+          showSyncStatus('success', 'Transaction saved');
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: 'addTransaction',
+            data: transaction
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: 'addTransaction',
+          data: transaction
+        });
+        
+        // Also save to local state for immediate UI update
+        const tempId = 'temp_' + Date.now();
+        state.transactions.unshift({
+          id: tempId,
+          ...transaction
+        });
+        updateDashboard();
+        debouncedRenderTransactions();
+        AI.render();
+        
+        return { key: tempId };
+      }
+    }
+
+    async function updateTransactionWithOfflineSupport(id, transactionData) {
+      if (navigator.onLine) {
+        try {
+          const result = await updateTransactionInFirebase(id, transactionData);
+          // Also update IndexedDB
+          await saveToIndexedDB('transactions', { id: id, ...transactionData });
+          showSyncStatus('success', 'Transaction updated');
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: 'updateTransaction',
+            id: id,
+            data: transactionData
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: 'updateTransaction',
+          id: id,
+          data: transactionData
+        });
+        
+        // Also update local state for immediate UI update
+        const index = state.transactions.findIndex(t => t.id === id);
+        if (index !== -1) {
+          state.transactions[index] = {
+            id: id,
+            ...transactionData
+          };
+          updateDashboard();
+          debouncedRenderTransactions();
+          AI.render();
+        }
+        
+        return {};
+      }
+    }
+
+    async function deleteTransactionWithOfflineSupport(id) {
+      if (navigator.onLine) {
+        try {
+          const result = await deleteTransactionFromFirebase(id);
+          // Also delete from IndexedDB
+          await deleteFromIndexedDB('transactions', id);
+          showSyncStatus('success', 'Transaction deleted');
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: 'deleteTransaction',
+            id: id
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: 'deleteTransaction',
+          id: id
+        });
+        
+        // Also update local state for immediate UI update
+        state.transactions = state.transactions.filter(t => t.id !== id);
+        updateDashboard();
+        debouncedRenderTransactions();
+        AI.render();
+        
+        return {};
+      }
+    }
+
+    // Category operations with offline support
+    async function saveCategoryWithOfflineSupport(categoryData, editingId = null) {
+      if (navigator.onLine) {
+        try {
+          let result;
+          if (editingId) {
+            result = await updateCategoryInFirebase(editingId, categoryData);
+            await saveToIndexedDB('categories', { id: editingId, ...categoryData });
+            showSyncStatus('success', 'Category updated');
+          } else {
+            result = await saveCategoryToFirebase(categoryData);
+            await saveToIndexedDB('categories', { id: result.key, ...categoryData });
+            showSyncStatus('success', 'Category added');
+          }
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: editingId ? 'updateCategory' : 'addCategory',
+            id: editingId,
+            data: categoryData
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: editingId ? 'updateCategory' : 'addCategory',
+          id: editingId,
+          data: categoryData
+        });
+        
+        // Also update local state for immediate UI update
+        if (editingId) {
+          const categoryIndex = [...state.userCategories.income, ...state.userCategories.expense]
+            .findIndex(c => c.id === editingId);
+          if (categoryIndex !== -1) {
+            // Update existing category
+            const type = categoryData.type;
+            const indexInType = state.userCategories[type].findIndex(c => c.id === editingId);
+            if (indexInType !== -1) {
+              state.userCategories[type][indexInType] = {
+                id: editingId,
+                ...categoryData
+              };
+            }
+          }
+        } else {
+          // Add new category with temporary ID
+          const tempId = 'temp_' + Date.now();
+          state.userCategories[categoryData.type].push({
+            id: tempId,
+            ...categoryData
+          });
+        }
+        
+        renderCategorySettings();
+        renderCategories();
+        populateQuickCategorySelect();
+        
+        return editingId ? {} : { key: tempId };
+      }
+    }
+
+    async function deleteCategoryWithOfflineSupport(id) {
+      if (navigator.onLine) {
+        try {
+          const result = await deleteCategoryFromFirebase(id);
+          await deleteFromIndexedDB('categories', id);
+          showSyncStatus('success', 'Category deleted');
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: 'deleteCategory',
+            id: id
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: 'deleteCategory',
+          id: id
+        });
+        
+        // Also update local state for immediate UI update
+        state.userCategories.income = state.userCategories.income.filter(c => c.id !== id);
+        state.userCategories.expense = state.userCategories.expense.filter(c => c.id !== id);
+        renderCategorySettings();
+        renderCategories();
+        populateQuickCategorySelect();
+        
+        return {};
+      }
+    }
+
+    // Debt operations with offline support
+    async function saveDebtWithOfflineSupport(debtData, editingId = null) {
+      if (navigator.onLine) {
+        try {
+          let result;
+          if (editingId) {
+            result = await updateDebtInFirebase(editingId, debtData);
+            await saveToIndexedDB('debts', { id: editingId, ...debtData });
+            showSyncStatus('success', 'Debt updated');
+          } else {
+            result = await saveDebtToFirebase(debtData);
+            await saveToIndexedDB('debts', { id: result.key, ...debtData });
+            showSyncStatus('success', 'Debt added');
+          }
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: editingId ? 'updateDebt' : 'addDebt',
+            id: editingId,
+            data: debtData
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: editingId ? 'updateDebt' : 'addDebt',
+          id: editingId,
+          data: debtData
+        });
+        
+        // Also update local state for immediate UI update
+        if (editingId) {
+          const debtIndex = state.debts.findIndex(d => d.id === editingId);
+          if (debtIndex !== -1) {
+            state.debts[debtIndex] = {
+              id: editingId,
+              ...debtData
+            };
+          }
+        } else {
+          // Add new debt with temporary ID
+          const tempId = 'temp_' + Date.now();
+          state.debts.unshift({
+            id: tempId,
+            ...debtData
+          });
+        }
+        
+        updateDebtDashboard();
+        renderDebts();
+        
+        return editingId ? {} : { key: tempId };
+      }
+    }
+
+    async function updateDebtWithOfflineSupport(id, debtData) {
+      return saveDebtWithOfflineSupport(debtData, id);
+    }
+
+    async function deleteDebtWithOfflineSupport(id) {
+      if (navigator.onLine) {
+        try {
+          const result = await deleteDebtFromFirebase(id);
+          await deleteFromIndexedDB('debts', id);
+          showSyncStatus('success', 'Debt deleted');
+          return result;
+        } catch (error) {
+          // If online but Firebase fails, save to pending operations
+          await savePendingOperation({
+            type: 'deleteDebt',
+            id: id
+          });
+          throw error;
+        }
+      } else {
+        // Offline: save to pending operations
+        await savePendingOperation({
+          type: 'deleteDebt',
+          id: id
+        });
+        
+        // Also update local state for immediate UI update
+        state.debts = state.debts.filter(d => d.id !== id);
+        updateDebtDashboard();
+        renderDebts();
+        
+        return {};
+      }
     }
 
     // ========== FIXED AI OBJECT ==========
@@ -2644,7 +4030,7 @@
               change: isFinite(monthChange) ? monthChange : 0, // Fixed: Check for finite
               trend: monthChange > 10 ? 'increasing' : monthChange < -10 ? 'decreasing' : 'stable'
             }
-          };
+        };
         },
         
         predictSpending() {
@@ -2781,6 +4167,34 @@
                 message: `You're saving ${currentMonthAnalysis.savingsRate.toFixed(0)}% of your income.`,
                 action: 'Keep it up!'
               });
+            }
+            
+            // Debt insights
+            const activeDebts = state.debts.filter(d => d.status === 'pending' || d.status === 'overdue');
+            if (activeDebts.length > 0) {
+              const totalOwed = activeDebts.reduce((sum, debt) => sum + debt.amount, 0);
+              const overdueDebts = activeDebts.filter(d => {
+                const dueDate = AI.parseDate(d.dueDate);
+                return dueDate && dueDate < new Date();
+              });
+              
+              if (overdueDebts.length > 0) {
+                recommendations.push({
+                  type: 'danger',
+                  icon: '⏰',
+                  title: 'Overdue Debts',
+                  message: `You have ${overdueDebts.length} overdue debt(s) totaling ${money(totalOwed)}.`,
+                  action: 'Follow up on payments'
+                });
+              } else {
+                recommendations.push({
+                  type: 'info',
+                  icon: '📋',
+                  title: 'Active Debts',
+                  message: `You have ${activeDebts.length} active debt(s) totaling ${money(totalOwed)}.`,
+                  action: 'Track repayment dates'
+                });
+              }
             }
             
           } catch (error) {
@@ -2961,6 +4375,14 @@
             </div>`;
           }
           
+          // Debt insights
+          const activeDebts = state.debts.filter(d => d.status === 'pending' || d.status === 'overdue');
+          if (activeDebts.length > 0) {
+            insightsHTML += `<div class="insight-badge warning">
+              <i class="fas fa-hand-holding-usd"></i> ${activeDebts.length} active debts
+            </div>`;
+          }
+          
           insightsHTML += '</div>';
           document.getElementById('quick-insights').innerHTML = insightsHTML;
           
@@ -3077,6 +4499,9 @@
       // Initial render for transaction categories (will be updated by loadUserCategories)
       renderCategories(); 
       updateDashboard();
+      
+      // Initialize chart system
+      renderChart();
     };
 
     // Firebase Functions
@@ -3102,8 +4527,36 @@
         updateDashboard();
         debouncedRenderTransactions();
         AI.render();
+        
+        // Update charts when transactions change
+        if (state.currentView === 'insights') {
+          renderChart();
+        }
+        
+        // Save to IndexedDB for offline access
+        if (data) {
+          saveToIndexedDB('transactions', Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          })));
+        }
       }, (error) => {
-        console.error('Error loading transactions:', error);
+        console.error('Error loading transactions from Firebase:', error);
+        
+        // Fallback to IndexedDB if offline
+        getFromIndexedDB('transactions').then(transactions => {
+          if (transactions && transactions.length > 0) {
+            state.transactions = transactions;
+            state.transactions.sort((a, b) => new Date(b.date + 'T00:00:00') - new Date(a.date + 'T00:00:00'));
+            updateDashboard();
+            debouncedRenderTransactions();
+            AI.render();
+            
+            if (state.currentView === 'insights') {
+              renderChart();
+            }
+          }
+        });
       });
     }
 
@@ -3135,10 +4588,7 @@
         timestamp: Date.now()
       };
 
-      const { database, ref, push } = window.firebaseDB;
-      const transactionsRef = ref(database, 'transactions');
-      
-      push(transactionsRef, transaction)
+      saveTransactionWithOfflineSupport(transaction)
         .then(() => {
           document.getElementById('amount-input').value = '';
           document.getElementById('description-input').value = '';
@@ -3158,10 +4608,7 @@
 
     function deleteTransaction(id) {
       if (confirm('Are you sure you want to delete this transaction?')) {
-        const { database, ref, remove } = window.firebaseDB;
-        const transactionRef = ref(database, `transactions/${id}`);
-        
-        remove(transactionRef)
+        deleteTransactionWithOfflineSupport(id)
           .then(() => {
             console.log('Transaction deleted successfully');
           })
@@ -3199,6 +4646,7 @@
       
       if (view === 'insights') {
         AI.render();
+        renderChart();
       } else if (view === 'settings') {
         renderCategorySettings(); // Make sure category list is up-to-date
       } else if (view === 'transactions') {
@@ -3435,12 +4883,6 @@
     document.getElementById('quick-expense-modal').addEventListener('click', (e) => {
       if (e.target.id === 'quick-expense-modal') {
         closeQuickModal();
-      }
-    });
-
-    document.getElementById('split-bill-modal').addEventListener('click', (e) => {
-      if (e.target.id === 'split-bill-modal') {
-        closeSplitModal();
       }
     });
 
