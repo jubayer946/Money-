@@ -3169,24 +3169,46 @@
       }
     }
 
+    // ========== NEW FUNCTION: DEDUCT MONEY WHEN DEBT IS PAID ==========
     function markDebtAsPaid(debtId) {
       const debt = state.debts.find(d => d.id === debtId);
       if (!debt) return;
       
-      const updatedDebt = {
-        ...debt,
-        status: 'paid',
-        updatedAt: new Date().toISOString()
-      };
-      
-      updateDebtWithOfflineSupport(debtId, updatedDebt)
-        .then(() => {
-          console.log('Debt marked as paid');
-        })
-        .catch((error) => {
-          console.error('Error updating debt:', error);
-          alert('Failed to update debt status.');
-        });
+      if (confirm(`Mark this debt as paid? This will deduct ${money(debt.amount)} from your balance.`)) {
+        const updatedDebt = {
+          ...debt,
+          status: 'paid',
+          updatedAt: new Date().toISOString()
+        };
+        
+        updateDebtWithOfflineSupport(debtId, updatedDebt)
+          .then(() => {
+            console.log('Debt marked as paid');
+            
+            // Create an expense transaction for the paid debt
+            const expenseTransaction = {
+              type: 'expense',
+              amount: debt.amount,
+              category: getFirstCategoryId('expense') || 'other', // Use first expense category or 'other'
+              description: `Paid debt to ${debt.person}: ${debt.description || 'No description'}`,
+              date: new Date().toISOString().split('T')[0],
+              timestamp: Date.now(),
+              isDebtPayment: true, // Mark as debt payment for tracking
+              originalDebtId: debtId
+            };
+            
+            // Save the expense transaction
+            return saveTransactionWithOfflineSupport(expenseTransaction);
+          })
+          .then(() => {
+            console.log('Expense transaction created for paid debt');
+            alert(`Debt marked as paid and ${money(debt.amount)} deducted from your balance.`);
+          })
+          .catch((error) => {
+            console.error('Error updating debt status:', error);
+            alert('Failed to update debt status.');
+          });
+      }
     }
 
     function filterDebts(filter) {
@@ -3594,8 +3616,8 @@
         // Offline: save to pending operations
         await savePendingOperation({
           type: 'updateTransaction',
-          id: id,
-          data: transactionData
+            id: id,
+            data: transactionData
         });
         
         // Also update local state for immediate UI update
